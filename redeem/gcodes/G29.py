@@ -25,15 +25,11 @@ class G29(GCodeCommand):
     self.printer.path_planner.wait_until_done()
     for gcode in gcodes:
       # If 'S' (imulate) remove M561 and M500 codes
-      if g.has_letter("S"):
-        if "RFS" in gcode:
-          logging.debug("G29: Removing due to RFS: " + str(gcode))
-        else:
-          G = Gcode({"message": gcode, "parent": g})
-          self.printer.processor.execute(G)
-          self.printer.path_planner.wait_until_done()
-      else:    # Execute all
+      if (g.has_letter("S")) and ("RFS" in gcode):
+        logging.debug("G29: Removing due to RFS: " + str(gcode))
+      else:    # Execute the code
         G = Gcode({"message": gcode, "parent": g})
+        self.printer.processor.resolve(G)
         self.printer.processor.execute(G)
         self.printer.path_planner.wait_until_done()
 
@@ -60,7 +56,7 @@ class G29(GCodeCommand):
   def get_long_description(self):
     return ("Probe the bed at specified points and "
             "update the bed compensation matrix based "
-            "on the found points. Add 'S' to only simulate "
+            "on the data collected. Add 'S' to only simulate "
             "and thus remove all lines containing the "
             "letters 'RFS' (Remove For Simulation).")
 
