@@ -170,36 +170,33 @@ class Printer:
     """
         go through the list of endstops and load their active status into the PRU
         """
-
     # generate a binary representation of the active status
     active = 0
     for i, es in enumerate(["X1", "Y1", "Z1", "X2", "Y2", "Z2"]):
       if self.end_stops[es].active:
         active += 1 << i
-
     #logging.debug("endstop active mask = " + bin(active))
-
     # write to shared memory
     PruInterface.set_active_endstops(active)
-    return
 
   def save_settings(self, filename):
     logging.debug("save_settings: setting stepper parameters")
     for name, stepper in iteritems(self.steppers):
-      self.config.set('Steppers', 'in_use_' + name, str(stepper.in_use))
-      self.config.set('Steppers', 'direction_' + name, str(stepper.direction))
-      self.config.set('Endstops', 'has_' + name, str(stepper.has_endstop))
-      self.config.set('Steppers', 'current_' + name, str(stepper.current_value))
-      self.config.set('Steppers', 'steps_pr_mm_' + name, str(stepper.steps_pr_mm))
-      self.config.set('Steppers', 'microstepping_' + name, str(stepper.microstepping))
-      self.config.set('Steppers', 'slow_decay_' + name, str(stepper.decay))
-      self.config.set('Steppers', 'slave_' + name, str(self.slaves[name]))
+      self.config.set('Steppers', "in_use_{}".format(name).lower(), str(stepper.in_use))
+      self.config.set('Steppers', "direction_{}".format(name).lower(), str(stepper.direction))
+      self.config.set('Endstops', "has_{}".format(name).lower(), str(stepper.has_endstop))
+      self.config.set('Steppers', "current_{}".format(name).lower(), str(stepper.current_value))
+      self.config.set('Steppers', "steps_pr_mm_{}".format(name).lower(), str(stepper.steps_pr_mm))
+      self.config.set('Steppers', "microstepping_{}".format(name).lower(), str(
+          stepper.microstepping))
+      self.config.set('Steppers', "slow_decay_{}".format(name).lower(), str(stepper.decay))
+      self.config.set('Steppers', "slave_{}".format(name).lower(), str(self.slaves[name]))
 
     logging.debug("save_settings: setting heater parameters")
     for name, heater in iteritems(self.heaters):
-      self.config.set('Heaters', 'pid_Kp_' + name, str(heater.Kp))
-      self.config.set('Heaters', 'pid_Ti_' + name, str(heater.Ti))
-      self.config.set('Heaters', 'pid_Td_' + name, str(heater.Td))
+      self.config.set("Temperature Control", str(heater.input.name), 'Kp', str(heater.input.Kp))
+      self.config.set("Temperature Control", str(heater.input.name), 'Ti', str(heater.input.Ti))
+      self.config.set("Temperature Control", str(heater.input.name), 'Td', str(heater.input.Td))
 
     logging.debug("save_settings: saving bed compensation matrix")
     # Bed compensation
@@ -208,11 +205,11 @@ class Printer:
     # Offsets
     logging.debug("save_settings: setting offsets")
     for axis, offset in iteritems(self.path_planner.center_offset):
-      self.config.set('Geometry', "offset_{}".format(axis), str(offset))
+      self.config.set('Geometry', "offset_{}".format(axis).lower(), str(offset))
     # Travel length
     logging.debug("save_settings: travel length")
     for axis, offset in iteritems(self.path_planner.travel_length):
-      self.config.set('Geometry', "travel_{}".format(axis), str(offset))
+      self.config.set('Geometry', "travel_{}".format(axis).lower(), str(offset))
 
     # Save Delta config
     logging.debug("save_settings: setting delta config")
@@ -240,20 +237,15 @@ class Printer:
 
   def resend_alarms(self):
     """ send all alarms that are in the alarms queue """
-
     for alarm in self.alarms:
       alarm.execute()
       #logging.info("Resent alarm : {}".format(alarm.message))
-
     # clear alarms
     self.alarms = []
-
-    return
 
   def movement_axis(self, axis):
     if self.e_axis_active and axis == "E":
       return self.current_tool
-
     return axis
 
   @staticmethod

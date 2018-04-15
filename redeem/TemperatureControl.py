@@ -606,9 +606,9 @@ class PIDControl(Control):
     if "output" in self.options:
       self.output = self.options["output"]
     self.target_value = float(self.options['target_value'])
-    self.Kp = float(self.options['pid_Kp'])
-    self.Ti = float(self.options['pid_Ti'])
-    self.Td = float(self.options['pid_Td'])
+    self.Kp = float(self.options['Kp'])
+    self.Ti = float(self.options['Ti'])
+    self.Td = float(self.options['Td'])
     self.ok_range = float(self.options['ok_range'])
     self.max_value = min(1.0, float(self.options['max_value']) / 255.0)
     self.sleep = float(self.options['sleep'])
@@ -693,14 +693,14 @@ class PIDControl(Control):
   def set_Kp(self, kp):
     """ redefine the Kp value """
     self.Kp = kp
-    self.options["pid_Kp"] = kp
+    self.options["Kp"] = kp
 
   def set_Ti(self, ti):
     """ redefine the Ti value """
     self.Ti = ti
-    self.options["pid_Ti"] = ti
+    self.options["Ti"] = ti
 
   def set_Td(self, td):
     """ redefine the Td value """
     self.Td = td
-    self.options["pid_Td"] = td
+    self.options["Td"] = td
