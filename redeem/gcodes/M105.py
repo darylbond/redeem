@@ -11,6 +11,7 @@ from __future__ import absolute_import
 
 import math
 from six import iteritems
+import logging
 from .GCodeCommand import GCodeCommand
 
 
@@ -33,14 +34,16 @@ class M105(GCodeCommand):
     for heater, data in sorted(iteritems(self.printer.heaters), key=lambda (k, v): (v, k)):
       answer += " " + format_temperature(heater, data.prefix)
 
-    # Append the current tool power is using PID
-    if not self.printer.heaters[current_tool].onoff_control:
-      answer += " @:" + str(math.floor(255 * self.printer.heaters[current_tool].mosfet.get_power()))
+      # Append the current tool power
+      current_power = math.floor(255 * self.printer.heaters[current_tool].mosfet.get_power())
+      if current_power > 0.0:
+        answer += " @:" + str(current_power)
 
     for c, cooler in enumerate(self.printer.cold_ends):
       temp = cooler.get_temperature()
       answer += " C{0}:{1:.0f}".format(c, temp)
 
+    #logging.info(answer)
     g.set_answer(answer)
 
   def get_description(self):

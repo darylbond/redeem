@@ -40,3 +40,9 @@ class ColdEnd:
         logging.warning("Unable to get temperature from " + self.name)
         return -1
     return temperature
+
+  def get_value(self):
+    return self.get_temperature()
+
+  def __str__(self):
+    return self.name

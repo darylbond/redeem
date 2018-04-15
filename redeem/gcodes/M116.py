@@ -43,18 +43,18 @@ class M116(GCodeCommand):
           and heater_index != 4
       ])
 
+    stable_time = 3.0
     while True:
-      all_ok[0] |= self.printer.heaters['E'].is_target_temperature_reached()
-      all_ok[1] |= self.printer.heaters['H'].is_target_temperature_reached()
-      all_ok[2] |= self.printer.heaters['HBP'].is_target_temperature_reached()
+      all_ok[0] |= self.printer.heaters['E'].is_temperature_stable()
+      all_ok[1] |= self.printer.heaters['H'].is_temperature_stable()
+      all_ok[2] |= self.printer.heaters['HBP'].is_temperature_stable()
 
       if self.printer.config.reach_revision:
-        all_ok[3] |= self.printer.heaters['A'].is_target_temperature_reached()
-        all_ok[4] |= self.printer.heaters['B'].is_target_temperature_reached()
-        all_ok[5] |= self.printer.heaters['C'].is_target_temperature_reached()
+        all_ok[3] |= self.printer.heaters['A'].is_temperature_stable()
+        all_ok[4] |= self.printer.heaters['B'].is_temperature_stable()
+        all_ok[5] |= self.printer.heaters['C'].is_temperature_stable()
 
       m105 = Gcode({"message": "M105", "parent": g})
-      self.printer.processor.resolve(m105)
       self.printer.processor.execute(m105)
       if False not in all_ok or not self.printer.running_M116:
         logging.info("Heating done.")
@@ -63,8 +63,7 @@ class M116(GCodeCommand):
         return
       else:
         answer = m105.get_answer()
-        answer += " E: " + \
-            ("0" if self.printer.current_tool == "E" else "1")
+        answer += " E: " + ("0" if self.printer.current_tool == "E" else "1")
         m105.set_answer(answer[2:])    # strip away the "ok"
         self.printer.reply(m105)
         time.sleep(1)

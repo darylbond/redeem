@@ -124,6 +124,7 @@ class PathPlanner:
     fw1 = self.pru_firmware.get_firmware(1)
 
     if fw0 is None or fw1 is None:
+      logging.error("Unable to get PRU firmware")
       return
 
     self.native_planner.initPRU(fw0, fw1)
@@ -147,6 +148,8 @@ class PathPlanner:
     self.native_planner.setState(self.prev.end_pos)
     self.printer.plugins.path_planner_initialized(self)
     self.native_planner.runThread()
+
+    logging.info("PathPlanner initialized")
 
   def configure_slaves(self):
     self.native_planner.enableSlaves(self.printer.has_slaves)
@@ -218,8 +221,7 @@ class PathPlanner:
       stepper.set_disabled(True)
 
     #Create a new path planner to have everything clean when it restarts
-    self.native_planner.stopThread(True)
-    self._init_path_planner()
+    self.restart()
 
   def suspend(self):
     ''' Temporary pause of planner '''
@@ -309,7 +311,7 @@ class PathPlanner:
   def _go_to_home(self, axis):
     """
         go to the designated home position
-        do this as a separate call from _home_internal due to delta platforms 
+        do this as a separate call from _home_internal due to delta platforms
         performing home in cartesian mode
         """
 
@@ -465,11 +467,9 @@ class PathPlanner:
                                     probe_points, print_head_zs)
 
     # update the native planner with the new values
-
     self.native_planner.delta_bot.setMainDimensions(Delta.L, Delta.r)
     self.native_planner.delta_bot.setRadialError(Delta.A_radial, Delta.B_radial, Delta.C_radial)
     self.native_planner.delta_bot.setAngularError(Delta.A_angular, Delta.B_angular, Delta.C_angular)
-
     return params
 
   def add_path(self, new):
@@ -522,11 +522,8 @@ class PathPlanner:
       self.prev = new
       self.prev.unlink()    # We don't want to store the entire print
       # in memory, so we keep only the last path.
-
       # make sure that the current state of the printer is correct
       self.prev.end_pos = self.native_planner.getState()
-
-    return
 
   def set_extruder(self, ext_nr):
     """
@@ -590,7 +587,7 @@ if __name__ == '__main__':
     # Get the revision from the Config file
     printer.config.parse_capes()
     revision = printer.config.replicape_revision
-    
+
     dirname = os.path.dirname(os.path.realpath(__file__))
     Printer.set_axes(5)
 
