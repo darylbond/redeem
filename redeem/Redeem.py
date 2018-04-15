@@ -703,6 +703,7 @@ class Redeem:
     if not RedeemIsRunning:
       return
     RedeemIsRunning = False
+    logging.getLogger().setLevel(logging.DEBUG)
     logging.info("Redeem Shutting Down")
     printer.path_planner.wait_until_done()
     printer.path_planner.force_exit()
