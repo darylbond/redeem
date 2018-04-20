@@ -89,6 +89,37 @@ def check_modified(cfg, path, key, value):
   return modified
 
 
+def parse_capes():
+  """ Read the name and revision of each cape on the BeagleBone """
+
+  replicape = {"rev": None, "data": None, "path": None}
+  reach = {"rev": None, "data": None, "path": None}
+
+  import glob
+  paths = glob.glob("/sys/bus/i2c/devices/[1-2]-005[4-7]/*/nvmem")
+  paths.extend(glob.glob("/sys/bus/i2c/devices/[1-2]-005[4-7]/nvmem/at24-[1-4]/nvmem"))
+  #paths.append(glob.glob("/sys/bus/i2c/devices/[1-2]-005[4-7]/eeprom"))
+  for i, path in enumerate(paths):
+    try:
+      with open(path, "rb") as f:
+        data = f.read(120)
+        name = data[58:74].strip()
+        if name == "BB-BONE-REPLICAP":
+          replicape["rev"] = data[38:42]
+          replicape["data"] = data
+          replicape["path"] = path
+        elif name[:13] == "BB-BONE-REACH":
+          reach["rev"] = data[38:42]
+          reach["data"] = data
+          reach["path"] = path
+        if replicape["rev"] != None and reach["rev"] != None:
+          break
+    except IOError as e:
+      pass
+
+  return replicape, reach
+
+
 #==============================================================================
 # Class
 #==============================================================================
@@ -147,34 +178,6 @@ class CascadingConfigParser(ConfigObj):
     if os.path.islink(printer_cfg):
       ts = max(ts, os.lstat(printer_cfg).st_mtime)
     return ts
-
-  def parse_capes(self):
-    """ Read the name and revision of each cape on the BeagleBone """
-    self.replicape_revision = None
-    self.reach_revision = None
-
-    import glob
-    paths = glob.glob("/sys/bus/i2c/devices/[1-2]-005[4-7]/*/nvmem")
-    paths.extend(glob.glob("/sys/bus/i2c/devices/[1-2]-005[4-7]/nvmem/at24-[1-4]/nvmem"))
-    #paths.append(glob.glob("/sys/bus/i2c/devices/[1-2]-005[4-7]/eeprom"))
-    for i, path in enumerate(paths):
-      try:
-        with open(path, "rb") as f:
-          data = f.read(120)
-          name = data[58:74].strip()
-          if name == "BB-BONE-REPLICAP":
-            self.replicape_revision = data[38:42]
-            self.replicape_data = data
-            self.replicape_path = path
-          elif name[:13] == "BB-BONE-REACH":
-            self.reach_revision = data[38:42]
-            self.reach_data = data
-            self.reach_path = path
-          if self.replicape_revision != None and self.reach_revision != None:
-            break
-      except IOError as e:
-        pass
-    return
 
   def load(self):
     '''generate a config that combines all of the cascading configs in the 
@@ -249,6 +252,17 @@ class CascadingConfigParser(ConfigObj):
 
   def get_key(self):
     """ Get the generated key from the config or create one """
+
+    replicape, reach = parse_capes()
+
+    self.replicape_revision = replicape["rev"]
+    self.replicape_data = replicape["data"]
+    self.replicape_path = replicape["path"]
+
+    self.reach_revision = reach["rev"]
+    self.reach_data = reach["data"]
+    self.reach_path = reach["path"]
+
     self.replicape_key = "".join(struct.unpack('20c', self.replicape_data[100:120]))
     logging.debug("Found Replicape key: '" + self.replicape_key + "'")
     if self.replicape_key == '\x00' * 20:

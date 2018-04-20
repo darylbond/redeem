@@ -472,23 +472,21 @@ class CommandCode(ConstantControl):
 
     self.output = []
     if "output" in self.options:
-      self.output = [o.strip() for o in self.options["output"].split(",")]
+      if self.options["output"]:
+        self.output = [o.strip() for o in self.options["output"].split(",")]
 
     self.input = self.command
 
   def connect(self, units):
     """ connect to other units """
+    print self.output
     for i, output in enumerate(self.output):
       self.output[i] = self.get_unit(output, units)
       self.output[i].input = self
 
   def check(self):
     """ perform any checks or logging after full connection """
-    outputs = "["
-    for output in self.output:
-      outputs += "{}, ".format(output)
-    outputs = outputs[0:-2] + "]"
-    logging.info("{} --> {} --> {}".format(self.input, self.name, outputs))
+    logging.info("{} --> {} --> {}".format(self.input, self.name, str(self.output)))
 
   def __str__(self):
     return str(self.name)

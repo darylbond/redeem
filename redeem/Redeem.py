@@ -65,6 +65,7 @@ from StepperWatchdog import StepperWatchdog
 from Key_pin import Key_pin, Key_pin_listener
 from Watchdog import Watchdog
 from six import iteritems
+from ConfigDefault import generate_default_config
 
 # Global vars
 printer = None
@@ -88,24 +89,24 @@ class Redeem:
     self.config_location = config_location
 
     # check for config files
-    file_path = os.path.join(config_location, "default.cfg")
-    if not os.path.exists(file_path):
-      logging.error(file_path + " does not exist, this file is required for operation")
-      sys.exit()    # maybe use something more graceful?
-
     local_path = os.path.join(config_location, "local.cfg")
     if not os.path.exists(local_path):
       logging.info(local_path + " does not exist, Creating one")
       os.mknod(local_path)
       os.chmod(local_path, 0o777)
 
+    # generate default config and write it to file
+    default_cfg = os.path.join(config_location, 'default.cfg')
+    generate_default_config(default_cfg)
+
     configs = [
-        os.path.join(config_location, 'default.cfg'),
+        default_cfg,
         os.path.join(config_location, 'printer.cfg'),
         os.path.join(config_location, 'local.cfg')
     ]
 
     self.config_error = []
+    self.initialize_counter = 0
 
     # run initialisation
     self.initialize(configs)
@@ -123,6 +124,12 @@ class Redeem:
 
     if not configs:
       msg = "No configuration files provided, aborting"
+      logging.error(msg)
+      raise RuntimeError(msg)
+
+    self.initialize_counter += 1
+    if self.initialize_counter > 2:
+      msg = "Stuck in an initialization loop, there is something wrong with the default config"
       logging.error(msg)
       raise RuntimeError(msg)
 
@@ -144,6 +151,8 @@ class Redeem:
     Alarm.printer = self.printer
     Alarm.executor = AlarmExecutor()
     alarm = Alarm(Alarm.ALARM_TEST, "Alarm framework operational")
+
+    # generate our default cfg
 
     # Parse the config files.
     printer.config = CascadingConfigParser(
@@ -172,27 +181,11 @@ class Redeem:
       self.logging = True
 
     # Find out which capes are connected
-    self.printer.config.parse_capes()
-    self.revision = self.printer.config.replicape_revision
-    if self.revision:
-      logging.info("Found Replicape rev. " + self.revision)
-      printer.replicape_key = printer.config.get_key()
-    else:
-      logging.warning("Oh no! No Replicape present!")
-      self.revision = "0B3A"
-    # We set it to 5 axis by default
-    Printer.NUM_AXES = 5
-    if self.printer.config.reach_revision:
-      logging.info("Found Reach rev. " + self.printer.config.reach_revision)
-    if self.printer.config.reach_revision == "00A0":
-      Printer.NUM_AXES = 8
-    elif self.printer.config.reach_revision == "00B0":
-      Printer.NUM_AXES = 7
 
-    if self.revision in ["00A4", "0A4A", "00A3"]:
-      PWM.set_frequency(100)
-    elif self.revision in ["00B1", "00B2", "00B3", "0B3A"]:
-      PWM.set_frequency(1000)
+    self.revision = self.printer.config.get("System", "replicape_revision")
+    printer.replicape_key = printer.config.get_key()
+    Printer.NUM_AXES = self.printer.config.get("System", "num_axes")
+    PWM.set_frequency(self.printer.config.get("System", "pwm_freq"))
 
     # Init the Watchdog timer
     printer.watchdog = Watchdog()
@@ -310,47 +303,20 @@ class Redeem:
       self.printer.cold_ends.append(ColdEnd(path, "ds18b20-" + str(i)))
       logging.info("Found Cold end " + str(i) + " on " + path)
 
-    # update the channel information for fans
-    if self.revision == "00A3":
-      self.printer.fans = [None] * 3
-      for i, c in enumerate([0, 1, 2]):
-        self.printer.config["Fans"]["Fan-{}".format(i)]["channel"] = c
-    elif self.revision == "0A4A":
-      self.printer.fans = [None] * 3
-      for i, c in enumerate([8, 9, 10]):
-        self.printer.config["Fans"]["Fan-{}".format(i)]["channel"] = c
-    elif self.revision in ["00B1", "00B2", "00B3", "0B3A"]:
-      self.printer.fans = [None] * 4
-      for i, c in enumerate([7, 8, 9, 10]):
-        self.printer.config["Fans"]["Fan-{}".format(i)]["channel"] = c
-    if printer.config.reach_revision == "00A0":
-      self.printer.fans = [None] * 3
-      for i, c in enumerate([14, 15, 7]):
-        self.printer.config["Fans"]["Fan-{}".format(i)]["channel"] = c
+    # Make thermistors
+    for name, data in self.printer.config.get("Thermistors").items():
+      main, ext = name.split("-")
+      self.printer.thermistors[ext] = TemperatureSensor(data["path_adc"], name, data["sensor"])
+      self.printer.thermistors[ext].printer = printer
 
-    # define the inputs/outputs available on this board
-    # also define those that are NOT available (for later use)
-    exclude = []
-    heaters = ["E", "H", "HBP"]
-    extra = ["A", "B", "C"]
-    if self.printer.config.reach_revision:
-      heaters.extend(extra)
-    else:
-      exclude = extra
+    # Make mosfets
+    for name, data in self.printer.config.get("Heaters").items():
+      main, ext = name.split("-")
+      self.printer.mosfets[ext] = Mosfet(int(data["mosfet"]))
 
-    # Make Mosfets and thermistors
-    for e in heaters:
-      # Thermistors
-      name = "Thermistor-{}".format(e)
-      adc = self.printer.config.get("Thermistors", name, "path_adc")
-      sensor = self.printer.config.get("Thermistors", name, "sensor")
-      self.printer.thermistors[e] = TemperatureSensor(adc, name, sensor)
-      self.printer.thermistors[e].printer = printer
-
-      # Mosfets
-      name = "Heater-{}".format(e)
-      channel = self.printer.config.getint("Heaters", name, "mosfet")
-      self.printer.mosfets[e] = Mosfet(channel)
+    # Make fan placeholders
+    for name, data in self.printer.config.get("Fans").items():
+      self.printer.fans.append(None)
 
     # build and connect all of the temperature control infrastructure
     self.printer.heaters = {}
@@ -381,8 +347,6 @@ class Redeem:
           continue
 
         e = name.split('-')[-1]
-        if e in exclude:
-          continue
 
         try:
           if section == "Fans":
@@ -661,6 +625,14 @@ class Redeem:
       self.printer.watchdog.start()
 
     self.printer.enable.set_enabled()
+
+    # run startup gcodes
+    gcodes = self.printer.config.get("Macros", "INIT").split("\n")
+    self.printer.path_planner.wait_until_done()
+    for gcode in gcodes:
+      G = Gcode({"message": gcode, "parent": None})
+      self.printer.processor.execute(G)
+      self.printer.path_planner.wait_until_done()
 
     # Signal everything ready
     logging.info("Redeem ready")
